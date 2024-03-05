@@ -93,28 +93,33 @@ async function query(data) {
 
 async function getProLLMResponse(prompt) {
     try {
-        const data = { "inputs": prompt };
-        const response = await query(data);
+        const API_URL = "https://api-inference.huggingface.co/models/Gustavosta/MagicPrompt-Dalle";
+        const headers = { "Authorization": "Bearer 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" };
+        const payload = { "inputs": prompt };
 
-        // Check if the response contains the image URL
-        if (response && response.image) {
-            return response.image;
-        } else {
-            throw new Error("Failed to generate image.");
+        const response = await fetch(API_URL, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                ...headers
+            },
+            body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+            throw new Error(`Failed to fetch from API: ${response.statusText}`);
         }
-    } catch (error) {
-        handleError(error);
-        throw error;
-    }
-}
 
-async function checkUsernameInDatabase(username) {
-    try {
-        const user = await Username.findOne({ username });
-        return !!user;
+        const data = await response.json();
+
+        // Handle the response data to extract the image URL or other relevant information
+        // const imageUrl = data.someKey;
+
+        // Perform further processing or return the image URL
+        // return imageUrl;
     } catch (error) {
-        handleError(error);
-        return false;
+        console.error("Error generating image:", error);
+        throw error;
     }
 }
 
