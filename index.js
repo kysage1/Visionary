@@ -80,46 +80,22 @@ async function asyncMiddleware(fn) {
 
 async function getProLLMResponse(prompt) {
     try {
-        const seedBytes = randomBytes(4);
-        const seed = seedBytes.readUInt32BE();
-        const data = {
-            width: 1024,
-            height: 1024,
-            seed: seed,
-            num_images: 1,
-            modelType: process.env.MODEL_TYPE,
-            sampler: 9,
-            cfg_scale: 3,
-            guidance_scale: 3,
-            strength: 1.7,
-            steps: 30,
-            high_noise_frac: 1,
-            negativePrompt: 'ugly, deformed, noisy, blurry, distorted, out of focus, bad anatomy, extra limbs, poorly drawn face, poorly drawn hands, missing fingers',
-            prompt: prompt,
-            hide: false,
-            isPrivate: false,
-            batchId: '0yU1CQbVkr',
-            generateVariants: false,
-            initImageFromPlayground: false,
-            statusUUID: '8c057d08-00f7-4ad6-903e-e10a2bb81d07'
-        };
-        const response = await fetch(process.env.BACKEND_URL, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Cookie': process.env.COOKIES
-            },
-            body: JSON.stringify(data)
-        });
-        const json = await response.json();
-        const imageUrl = `https://storage.googleapis.com/pai-images/${json.images[0].imageKey}.jpeg`;
-        const imageResponse = await fetch(imageUrl);
-        const buffer = Buffer.from(await imageResponse.arrayBuffer());
+        const API_URL = "https://api-inference.huggingface.co/models/Gustavosta/MagicPrompt-Dalle";
+        const headers = { "Authorization": "Bearer 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" };
+        const payload = { "inputs": prompt };
 
-        const tempFilePath = join(tmpdir(), `${Date.now()}.jpeg`);
-        console.log("Image file path:", tempFilePath); // Add this line to check the value
-        await fsPromises.writeFile(tempFilePath, buffer);
-        return tempFilePath;
+        const response = await fetch(API_URL, {
+            method: 'POST',
+            headers: headers,
+            body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! Status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        return data;
     } catch (error) {
         handleError(error);
         throw error;
@@ -180,11 +156,21 @@ bot.command('imagine', async (ctx) => {
 
         const message = await ctx.reply('Making the magic happen...');
 
-        const imageFilePath = await getProLLMResponse(prompt);
+        const data = await getProLLMResponse(prompt);
+        const imageUrl = data ? data.image : null;
+        
+        if (!imageUrl) {
+            ctx.reply('Failed to generate image.');
+            return;
+        }
+
+        const imageResponse = await fetch(imageUrl);
+        const buffer = Buffer.from(await imageResponse.arrayBuffer());
+
+        const tempFilePath = join(tmpdir(), `${Date.now()}.jpeg`);
+        await fsPromises.writeFile(tempFilePath, buffer);
         await ctx.telegram.sendChatAction(ctx.chat.id, 'upload_photo');
-
-        await ctx.replyWithPhoto({ source: await fsPromises.readFile(imageFilePath) });
-
+        await ctx.replyWithPhoto({ source: await fsPromises.readFile(tempFilePath) });
         await ctx.telegram.deleteMessage(ctx.chat.id, message.message_id);
         await saveImageCount(username);
     } catch (error) {
