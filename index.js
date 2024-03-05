@@ -80,25 +80,51 @@ async function asyncMiddleware(fn) {
 
 async function getProLLMResponse(prompt) {
     try {
+        const seedBytes = randomBytes(4);
+        const seed = seedBytes.readUInt32BE();
         const data = {
-            inputs: prompt
+            width: 1024,
+            height: 1024,
+            seed: seed,
+            num_images: 1,
+            modelType: process.env.MODEL_TYPE,
+            sampler: 9,
+            cfg_scale: 3,
+            guidance_scale: 3,
+            strength: 1.7,
+            steps: 30,
+            high_noise_frac: 1,
+            negativePrompt: 'ugly, deformed, noisy, blurry, distorted, out of focus, bad anatomy, extra limbs, poorly drawn face, poorly drawn hands, missing fingers',
+            prompt: prompt,
+            hide: false,
+            isPrivate: false,
+            batchId: '0yU1CQbVkr',
+            generateVariants: false,
+            initImageFromPlayground: false,
+            statusUUID: '8c057d08-00f7-4ad6-903e-e10a2bb81d07'
         };
-        const response = await fetch("https://api-inference.huggingface.co/models/Gustavosta/MagicPrompt-Dalle", {
+        const response = await fetch(process.env.BACKEND_URL, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': 'Bearer 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'
+                'Cookie': process.env.COOKIES
             },
             body: JSON.stringify(data)
         });
         const json = await response.json();
-        // Handle the response and return the necessary data
+        const imageUrl = `https://storage.googleapis.com/pai-images/${json.images[0].imageKey}.jpeg`;
+        const imageResponse = await fetch(imageUrl);
+        const buffer = Buffer.from(await imageResponse.arrayBuffer());
+
+        const tempFilePath = join(tmpdir(), `${Date.now()}.jpeg`);
+        console.log("Image file path:", tempFilePath); // Add this line to check the value
+        await fsPromises.writeFile(tempFilePath, buffer);
+        return tempFilePath;
     } catch (error) {
         handleError(error);
         throw error;
     }
 }
-
 
 async function checkUsernameInDatabase(username) {
     try {
