@@ -10,6 +10,9 @@ import { randomBytes } from 'crypto';
 
 dotenv.config();
 
+const API_URL = "https://api-inference.huggingface.co/models/Gustavosta/MagicPrompt-Dalle";
+const headers = { "Authorization": "Bearer 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" };
+
 function handleError(error) {
     console.error(error);
 }
@@ -78,24 +81,27 @@ async function asyncMiddleware(fn) {
     };
 }
 
+async function query(data) {
+    const response = await fetch(API_URL, {
+        headers: headers,
+        method: "POST",
+        body: JSON.stringify(data),
+    });
+    const result = await response.json();
+    return result;
+}
+
 async function getProLLMResponse(prompt) {
     try {
-        const API_URL = "https://api-inference.huggingface.co/models/Gustavosta/MagicPrompt-Dalle";
-        const headers = { "Authorization": "Bearer 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" };
-        const payload = { "inputs": prompt };
+        const data = { "inputs": prompt };
+        const response = await query(data);
 
-        const response = await fetch(API_URL, {
-            method: 'POST',
-            headers: headers,
-            body: JSON.stringify(payload)
-        });
-
-        if (!response.ok) {
-            throw new Error(`HTTP error! Status: ${response.status}`);
+        // Check if the response contains the image URL
+        if (response && response.image) {
+            return response.image;
+        } else {
+            throw new Error("Failed to generate image.");
         }
-
-        const data = await response.json();
-        return data;
     } catch (error) {
         handleError(error);
         throw error;
@@ -156,21 +162,11 @@ bot.command('imagine', async (ctx) => {
 
         const message = await ctx.reply('Making the magic happen...');
 
-        const data = await getProLLMResponse(prompt);
-        const imageUrl = data ? data.image : null;
-        
-        if (!imageUrl) {
-            ctx.reply('Failed to generate image.');
-            return;
-        }
-
-        const imageResponse = await fetch(imageUrl);
-        const buffer = Buffer.from(await imageResponse.arrayBuffer());
-
-        const tempFilePath = join(tmpdir(), `${Date.now()}.jpeg`);
-        await fsPromises.writeFile(tempFilePath, buffer);
+        const imageUrl = await getProLLMResponse(prompt);
         await ctx.telegram.sendChatAction(ctx.chat.id, 'upload_photo');
-        await ctx.replyWithPhoto({ source: await fsPromises.readFile(tempFilePath) });
+
+        await ctx.replyWithPhoto(imageUrl);
+
         await ctx.telegram.deleteMessage(ctx.chat.id, message.message_id);
         await saveImageCount(username);
     } catch (error) {
