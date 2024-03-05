@@ -11,7 +11,7 @@ import { randomBytes } from 'crypto';
 dotenv.config();
 
 const API_URL = "https://api-inference.huggingface.co/models/Gustavosta/MagicPrompt-Dalle";
-const headers = { "Authorization": "Bearer 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" };
+const headers = { "Authorization": "Bearer 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" };
 
 function handleError(error) {
     console.error(error);
